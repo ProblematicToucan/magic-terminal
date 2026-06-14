@@ -76,7 +76,7 @@
     "watch": "npm-run-all -p watch:*",
     "watch:esbuild": "node esbuild.js --watch",
     "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
-    "package": "pnpm run check-types && pnpm run lint && node esbuild.js --production && (chmod +x node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper node_modules/node-pty/prebuilds/darwin-x64/spawn-helper 2>/dev/null || true)",
+    "package": "pnpm run check-types && pnpm run lint && node esbuild.js --production && node -e \"const fs = require('fs'); const path = require('path'); ['darwin-arm64', 'darwin-x64', 'linux-arm64', 'linux-x64'].forEach(p => { const file = path.join('node_modules', 'node-pty', 'prebuilds', p, 'spawn-helper'); if (fs.existsSync(file)) { fs.chmodSync(file, 0o755); } })\"",
     "compile-tests": "tsc -p . --outDir out",
     "watch-tests": "tsc -p . -w --outDir out",
     "pretest": "pnpm run compile-tests && pnpm run compile && pnpm run lint",
