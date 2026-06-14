@@ -12,9 +12,10 @@ interface TerminalInfo {
   // @ts-ignore
   const vscode = acquireVsCodeApi();
 
-  const terminalSelect = document.getElementById('terminalSelect') as HTMLSelectElement;
-  const newTerminalBtn = document.getElementById('newTerminalBtn')!;
-  const killTerminalBtn = document.getElementById('killTerminalBtn') as HTMLButtonElement;
+  const stackBtn = document.getElementById('stackBtn')!;
+  const menuPopup = document.getElementById('menuPopup')!;
+  const menuNewTerminal = document.getElementById('menuNewTerminal')!;
+  const menuTerminalList = document.getElementById('menuTerminalList')!;
   const terminalContainer = document.getElementById('terminalContainer')!;
   const emptyState = document.getElementById('emptyState')!;
 
@@ -169,27 +170,57 @@ interface TerminalInfo {
 
     activeTerminalId = activeId;
 
-    // 4. Update dropdown options
-    terminalSelect.innerHTML = '';
+    // 4. Update menu terminal list
+    menuTerminalList.innerHTML = '';
 
-    if (terminals.length === 0) {
-      const option = document.createElement('option');
-      option.text = 'No Terminals';
-      option.value = '';
-      terminalSelect.appendChild(option);
-      terminalSelect.disabled = true;
-      killTerminalBtn.disabled = true;
-    } else {
-      terminalSelect.disabled = false;
-      killTerminalBtn.disabled = false;
-      terminals.forEach((t) => {
-        const option = document.createElement('option');
-        option.value = t.id;
-        option.text = t.name;
-        option.selected = t.isActive;
-        terminalSelect.appendChild(option);
+    terminals.forEach((t) => {
+      const itemEl = document.createElement('div');
+      itemEl.className = 'menu-item' + (t.isActive ? ' active' : '');
+      itemEl.dataset.id = t.id;
+
+      // Create checkmark icon
+      const checkSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      checkSvg.setAttribute('class', 'active-indicator');
+      checkSvg.setAttribute('width', '12');
+      checkSvg.setAttribute('height', '12');
+      checkSvg.setAttribute('viewBox', '0 0 16 16');
+      checkSvg.setAttribute('fill', 'currentColor');
+      checkSvg.innerHTML = '<path fill-rule="evenodd" clip-rule="evenodd" d="M13.849 3.147L5.01 11.986 2.152 9.127 1.445 9.834 5.01 13.4 14.556 3.854z"/>';
+      itemEl.appendChild(checkSvg);
+
+      // Create label
+      const labelSpan = document.createElement('span');
+      labelSpan.className = 'item-label';
+      labelSpan.textContent = t.name;
+      itemEl.appendChild(labelSpan);
+
+      // Create close button
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'item-close-btn';
+      closeBtn.title = 'Kill Terminal';
+      
+      const closeSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      closeSvg.setAttribute('width', '10');
+      closeSvg.setAttribute('height', '10');
+      closeSvg.setAttribute('viewBox', '0 0 16 16');
+      closeSvg.setAttribute('fill', 'currentColor');
+      closeSvg.innerHTML = '<path d="M7.11 8l-4.57-4.57.89-.89 4.57 4.57 4.57-4.57.89.89-4.57 4.57 4.57 4.57-.89.89-4.57-4.57-4.57 4.57-.89-.89 4.57-4.57z"/>';
+      closeBtn.appendChild(closeSvg);
+
+      closeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        vscode.postMessage({ type: 'killTerminal', terminalId: t.id });
       });
-    }
+      itemEl.appendChild(closeBtn);
+
+      // Select terminal action
+      itemEl.addEventListener('click', () => {
+        vscode.postMessage({ type: 'focusTerminal', terminalId: t.id });
+        menuPopup.style.display = 'none';
+      });
+
+      menuTerminalList.appendChild(itemEl);
+    });
 
     // 5. Update empty state visibility
     if (terminals.length === 0) {
@@ -235,24 +266,25 @@ interface TerminalInfo {
     }
   });
 
-  // Dropdown selection change
-  terminalSelect.addEventListener('change', () => {
-    const selectedId = terminalSelect.value;
-    if (selectedId) {
-      vscode.postMessage({ type: 'focusTerminal', terminalId: selectedId });
+  // Toggle menu display
+  stackBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isVisible = menuPopup.style.display === 'flex';
+    menuPopup.style.display = isVisible ? 'none' : 'flex';
+  });
+
+  // Close menu when clicking outside
+  document.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    if (!stackBtn.contains(target) && !menuPopup.contains(target)) {
+      menuPopup.style.display = 'none';
     }
   });
 
-  // Create terminal click
-  newTerminalBtn.addEventListener('click', () => {
+  // New Terminal action in menu
+  menuNewTerminal.addEventListener('click', () => {
     vscode.postMessage({ type: 'createTerminal' });
-  });
-
-  // Kill terminal click
-  killTerminalBtn.addEventListener('click', () => {
-    if (activeTerminalId) {
-      vscode.postMessage({ type: 'killTerminal', terminalId: activeTerminalId });
-    }
+    menuPopup.style.display = 'none';
   });
 
   // Signal that webview is ready to load terminals

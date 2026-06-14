@@ -168,76 +168,40 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       justify-content: space-between;
       background-color: var(--vscode-editor-background);
       border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-panel-border));
-      padding: 4px 8px;
-      min-height: 36px;
+      padding: 0 12px;
+      height: 40px;
       flex-shrink: 0;
-      gap: 8px;
-    }
-
-    .select-container {
-      flex: 1;
-      min-width: 0;
       position: relative;
     }
 
-    .select-container::after {
-      content: '';
-      position: absolute;
-      right: 8px;
-      top: 50%;
-      transform: translateY(-50%);
-      border-left: 4px solid transparent;
-      border-right: 4px solid transparent;
-      border-top: 4px solid var(--vscode-dropdown-foreground, var(--vscode-settings-selectForeground, #cccccc));
-      pointer-events: none;
+    .header-bar .title {
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 10px;
+      letter-spacing: 0.5px;
+      color: var(--vscode-sideBarTitle-foreground, var(--vscode-foreground));
+      opacity: 0.8;
+      user-select: none;
     }
 
-    .terminal-select {
-      width: 100%;
-      height: 24px;
-      background-color: var(--vscode-dropdown-background, var(--vscode-settings-selectBackground, #3c3c3c));
-      color: var(--vscode-dropdown-foreground, var(--vscode-settings-selectForeground, #cccccc));
-      border: 1px solid var(--vscode-dropdown-border, var(--vscode-settings-selectBorder, #3c3c3c));
-      border-radius: 4px;
-      padding: 0 8px;
-      padding-right: 24px;
-      font-family: var(--vscode-font-family);
-      font-size: 11px;
-      outline: none;
-      cursor: pointer;
-      appearance: none;
-      -webkit-appearance: none;
-      -moz-appearance: none;
-    }
-
-    .terminal-select:focus {
-      border-color: var(--vscode-focusBorder);
-    }
-
-    .terminal-select:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-
-    .action-buttons {
+    .actions {
       display: flex;
       align-items: center;
-      gap: 4px;
-      flex-shrink: 0;
     }
 
     .action-btn {
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 24px;
-      height: 24px;
+      width: 26px;
+      height: 26px;
       border: none;
       background: transparent;
       color: var(--vscode-icon-foreground, var(--vscode-foreground));
       cursor: pointer;
       border-radius: 4px;
       outline: none;
+      flex-shrink: 0;
     }
 
     .action-btn:hover {
@@ -248,15 +212,103 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       background-color: var(--vscode-toolbar-activeBackground, rgba(90, 93, 94, 0.5));
     }
 
-    .action-btn:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-      pointer-events: none;
+    .action-btn svg {
+      width: 18px;
+      height: 18px;
+      display: block;
+      flex-shrink: 0;
     }
 
-    .action-btn svg {
+    /* Popup Menu */
+    .menu-popup {
+      position: absolute;
+      top: 36px;
+      right: 8px;
+      background-color: var(--vscode-menu-background, var(--vscode-dropdown-background, #252526));
+      color: var(--vscode-menu-foreground, var(--vscode-dropdown-foreground, #cccccc));
+      border: 1px solid var(--vscode-menu-border, var(--vscode-dropdown-border, #454545));
+      border-radius: 4px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+      z-index: 1000;
+      min-width: 180px;
+      display: none;
+      flex-direction: column;
+      padding: 4px 0;
+      user-select: none;
+    }
+
+    .menu-item {
+      display: flex;
+      align-items: center;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 11px;
+      gap: 8px;
+      position: relative;
+      color: var(--vscode-menu-foreground, var(--vscode-foreground));
+    }
+
+    .menu-item:hover {
+      background-color: var(--vscode-menu-selectionBackground, var(--vscode-list-hoverBackground, #007acc));
+      color: var(--vscode-menu-selectionForeground, var(--vscode-list-hoverForeground, #ffffff)) !important;
+    }
+
+    .menu-item.active {
+      font-weight: 500;
+    }
+
+    .menu-item .active-indicator {
+      width: 12px;
+      height: 12px;
+      flex-shrink: 0;
+      visibility: hidden;
+    }
+
+    .menu-item.active .active-indicator {
+      visibility: visible;
+    }
+
+    .menu-item .item-label {
+      flex: 1;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .menu-item .item-close-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
       width: 16px;
       height: 16px;
+      border: none;
+      background: transparent;
+      color: inherit;
+      opacity: 0.6;
+      cursor: pointer;
+      border-radius: 3px;
+      visibility: hidden;
+    }
+
+    .menu-item:hover .item-close-btn {
+      visibility: visible;
+    }
+
+    .menu-item .item-close-btn:hover {
+      background-color: rgba(255, 255, 255, 0.15);
+      opacity: 1;
+    }
+
+    .menu-item .item-close-btn svg {
+      width: 10px;
+      height: 10px;
+    }
+
+    .menu-separator {
+      height: 1px;
+      background-color: var(--vscode-menu-separatorBackground, var(--vscode-sideBarSectionHeader-border, #454545));
+      margin: 4px 0;
     }
 
     .empty-state {
@@ -298,26 +350,29 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       left: 0;
       right: 0;
       bottom: 0;
-      padding: 4px;
+      padding: 4px 4px 4px 12px;
     }
   </style>
 </head>
 <body>
   <div class="header-bar" id="headerBar">
-    <div class="select-container">
-      <select id="terminalSelect" class="terminal-select"></select>
+    <div class="title">Terminal</div>
+    <div class="actions">
+      <button class="action-btn" id="stackBtn" title="Manage Terminals">
+        <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
+          <path fill-rule="evenodd" clip-rule="evenodd" d="M1 2h14v12H1V2zm1 1v10h12V3H2zm2.5 2.5L7 7l-2.5 1.5-.5-.7 1.3-.8L4 6.2l.5-.7zM8 8h3v1H8V8z"/>
+        </svg>
+      </button>
     </div>
-    <div class="action-buttons">
-      <button class="action-btn" id="newTerminalBtn" title="New Terminal">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+    <div class="menu-popup" id="menuPopup">
+      <div class="menu-item" id="menuNewTerminal">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
           <path fill-rule="evenodd" clip-rule="evenodd" d="M8 2.5a.5.5 0 0 1 .5.5v4.5H13a.5.5 0 0 1 0 1H8.5V13a.5.5 0 0 1-1 0V8.5H3a.5.5 0 0 1 0-1h4.5V3a.5.5 0 0 1 .5-.5z"/>
         </svg>
-      </button>
-      <button class="action-btn" id="killTerminalBtn" title="Kill Active Terminal">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-          <path fill-rule="evenodd" clip-rule="evenodd" d="M10 3h3v1h-1v9l-1 1H5l-1-1V4H3V3h3V2h4v1zM5 13h6V4H5v9zm2-7H6v5h1V6zm3 0H9v5h1V6z"/>
-        </svg>
-      </button>
+        <span class="item-label">New Terminal</span>
+      </div>
+      <div class="menu-separator"></div>
+      <div id="menuTerminalList"></div>
     </div>
   </div>
   <div id="emptyState" class="empty-state" style="display: none;">

@@ -13,7 +13,6 @@ interface TerminalSession {
 export class TerminalManager {
   private managedTerminals: Map<string, TerminalSession> = new Map();
   private activeTerminalId: string | null = null;
-  private nextId = 1;
   private changeCallback: (() => void) | null = null;
   private dataCallback: ((terminalId: string, data: string) => void) | null = null;
 
@@ -26,8 +25,22 @@ export class TerminalManager {
   }
 
   createTerminal(name?: string): string {
-    const id = `terminal-${this.nextId++}`;
-    const displayName = name || `Terminal ${this.nextId - 1}`;
+    let k = 1;
+    while (true) {
+      const candidateName = `Terminal ${k}`;
+      const candidateId = `terminal-${k}`;
+      const nameExists = Array.from(this.managedTerminals.values()).some(
+        session => session.name === candidateName
+      );
+      const idExists = this.managedTerminals.has(candidateId);
+      if (!nameExists && !idExists) {
+        break;
+      }
+      k++;
+    }
+
+    const id = `terminal-${k}`;
+    const displayName = name || `Terminal ${k}`;
 
     const shell = this.getShellPath();
     const cwd = path.resolve(this.getWorkspaceFolder());
