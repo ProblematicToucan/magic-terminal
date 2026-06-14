@@ -4,7 +4,7 @@ import { SidebarViewProvider } from './sidebarViewProvider';
 export function activate(context: vscode.ExtensionContext) {
   console.log('Magic Terminal is now active!');
 
-  const provider = new SidebarViewProvider();
+  const provider = new SidebarViewProvider(context.extensionUri);
 
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(

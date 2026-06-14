@@ -4,15 +4,21 @@ import { TerminalManager } from './terminalManager';
 interface WebviewMessage {
   type: string;
   terminalId?: string;
+  data?: string;
+  cols?: number;
+  rows?: number;
 }
 
 export class SidebarViewProvider implements vscode.WebviewViewProvider {
   private _view: vscode.WebviewView | null = null;
   private _manager: TerminalManager;
 
-  constructor() {
+  constructor(private readonly _extensionUri: vscode.Uri) {
     this._manager = new TerminalManager();
     this._manager.onChange(() => this._postTerminalList());
+    this._manager.onData((id, data) => {
+      this._view?.webview.postMessage({ type: 'data', terminalId: id, data });
+    });
   }
 
   resolveWebviewView(
@@ -24,25 +30,42 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.options = {
       enableScripts: true,
+      localResourceRoots: [
+        this._extensionUri
+      ]
     };
 
-    webviewView.webview.html = this._getHtml();
+    const webviewUri = webviewView.webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, 'dist', 'webview.js')
+    );
+    const cssUri = webviewView.webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, 'dist', 'xterm.css')
+    );
+
+    webviewView.webview.html = this._getHtml(webviewUri, cssUri);
 
     webviewView.webview.onDidReceiveMessage((message: WebviewMessage) => {
       this._handleMessage(message);
     });
 
     webviewView.onDidChangeVisibility(() => {
-      if (webviewView.visible && this._manager.getTerminalIds().length === 0) {
-        this._manager.createTerminal();
+      if (webviewView.visible) {
+        if (this._manager.getTerminalIds().length === 0) {
+          this._manager.createTerminal();
+        }
+        this._postTerminalList();
       }
-      this._postTerminalList();
     });
+
+    if (this._manager.getTerminalIds().length === 0) {
+      this._manager.createTerminal();
+    }
+    this._postTerminalList();
   }
 
   createNewTerminal(): void {
     const id = this._manager.createTerminal();
-    this._manager.focusTerminal(id);
+    this._manager.setActiveTerminalId(id);
   }
 
   killActiveTerminal(): void {
@@ -58,14 +81,18 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
   private _handleMessage(message: WebviewMessage): void {
     switch (message.type) {
+      case 'ready': {
+        this._postTerminalList();
+        break;
+      }
       case 'createTerminal': {
         const id = this._manager.createTerminal();
-        this._manager.focusTerminal(id);
+        this._manager.setActiveTerminalId(id);
         break;
       }
       case 'focusTerminal': {
         if (message.terminalId) {
-          this._manager.focusTerminal(message.terminalId);
+          this._manager.setActiveTerminalId(message.terminalId);
         }
         break;
       }
@@ -75,8 +102,27 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
         }
         break;
       }
-      case 'requestTerminalList': {
-        this._postTerminalList();
+      case 'input': {
+        if (message.terminalId && typeof message.data === 'string') {
+          this._manager.writeInput(message.terminalId, message.data);
+        }
+        break;
+      }
+      case 'resize': {
+        if (message.terminalId && typeof message.cols === 'number' && typeof message.rows === 'number') {
+          this._manager.resizeTerminal(message.terminalId, message.cols, message.rows);
+        }
+        break;
+      }
+      case 'requestBacklog': {
+        if (message.terminalId) {
+          const backlog = this._manager.getBacklog(message.terminalId);
+          this._view?.webview.postMessage({
+            type: 'backlog',
+            terminalId: message.terminalId,
+            data: backlog
+          });
+        }
         break;
       }
     }
@@ -93,15 +139,16 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     this._view?.webview.postMessage({ type: 'terminalList', terminals });
   }
 
-  private _getHtml(): string {
+  private _getHtml(webviewUri: vscode.Uri, cssUri: vscode.Uri): string {
     const nonce = this._getNonce();
 
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
-  <style nonce="${nonce}">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' ${this._view?.webview.cspSource}; script-src 'nonce-${nonce}'; font-src ${this._view?.webview.cspSource};">
+  <link rel="stylesheet" href="${cssUri}">
+  <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
@@ -109,8 +156,8 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      background-color: var(--vscode-sideBar-background);
-      color: var(--vscode-sideBar-foreground);
+      background-color: var(--vscode-terminal-background, var(--vscode-sideBar-background));
+      color: var(--vscode-terminal-foreground, var(--vscode-sideBar-foreground));
       font-family: var(--vscode-font-family);
       font-size: 12px;
     }
@@ -224,76 +271,35 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       font-size: 10px;
       font-family: var(--vscode-font-family);
     }
+
+    #terminalContainer {
+      flex: 1;
+      min-height: 0;
+      position: relative;
+      background-color: var(--vscode-terminal-background);
+    }
+
+    .terminal-instance-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding: 4px;
+    }
   </style>
 </head>
 <body>
   <div class="tab-bar" id="tabBar">
     <div class="new-tab-btn" id="newTabBtn" title="New Terminal">+</div>
   </div>
-  <div id="emptyState" class="empty-state">
+  <div id="emptyState" class="empty-state" style="display: none;">
     <div>No terminals open</div>
     <div class="hint">Click <kbd>+</kbd> to create one</div>
   </div>
+  <div id="terminalContainer"></div>
 
-  <script nonce="${nonce}">
-    (function () {
-      const vscode = acquireVsCodeApi();
-
-      const tabBar = document.getElementById('tabBar');
-      const emptyState = document.getElementById('emptyState');
-
-      function renderTabBar(terminals) {
-        tabBar.querySelectorAll('.tab').forEach(function (t) { t.remove(); });
-
-        if (!terminals || terminals.length === 0) {
-          emptyState.style.display = 'flex';
-        } else {
-          emptyState.style.display = 'none';
-        }
-
-        terminals.forEach(function (t) {
-          var tabEl = document.createElement('div');
-          tabEl.className = 'tab' + (t.isActive ? ' active' : '');
-          tabEl.dataset.id = t.id;
-
-          var label = document.createElement('span');
-          label.className = 'label';
-          label.textContent = t.name;
-          tabEl.appendChild(label);
-
-          var closeBtn = document.createElement('span');
-          closeBtn.className = 'close-btn';
-          closeBtn.innerHTML = '&#x2715;';
-          closeBtn.title = 'Close terminal';
-          closeBtn.addEventListener('click', function (e) {
-            e.stopPropagation();
-            vscode.postMessage({ type: 'killTerminal', terminalId: t.id });
-          });
-          tabEl.appendChild(closeBtn);
-
-          tabEl.addEventListener('click', function () {
-            vscode.postMessage({ type: 'focusTerminal', terminalId: t.id });
-          });
-
-          tabBar.appendChild(tabEl);
-        });
-      }
-
-      window.addEventListener('message', function (event) {
-        var msg = event.data;
-        if (msg.type === 'terminalList') {
-          renderTabBar(msg.terminals);
-        }
-      });
-
-      document.getElementById('newTabBtn').addEventListener('click', function () {
-        vscode.postMessage({ type: 'createTerminal' });
-      });
-
-      vscode.postMessage({ type: 'requestTerminalList' });
-      vscode.postMessage({ type: 'createTerminal' });
-    })();
-  </script>
+  <script nonce="${nonce}" src="${webviewUri}"></script>
 </body>
 </html>`;
   }
