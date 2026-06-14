@@ -8,6 +8,7 @@ interface TerminalSession {
   name: string;
   ptyProcess: pty.IPty;
   backlog: string;
+  disposables: pty.IDisposable[];
 }
 
 export class TerminalManager {
@@ -64,20 +65,24 @@ export class TerminalManager {
       name: displayName,
       ptyProcess,
       backlog: '',
+      disposables: [],
     };
 
-    ptyProcess.onData((data) => {
+    const dataListener = ptyProcess.onData((data) => {
       session.backlog += data;
       const MAX_BACKLOG_SIZE = 100000;
-      if (session.backlog.length > MAX_BACKLOG_SIZE) {
+      const TRIM_THRESHOLD = 120000;
+      if (session.backlog.length > TRIM_THRESHOLD) {
         session.backlog = session.backlog.slice(session.backlog.length - MAX_BACKLOG_SIZE);
       }
       this.dataCallback?.(id, data);
     });
 
-    ptyProcess.onExit(() => {
+    const exitListener = ptyProcess.onExit(() => {
       this.killTerminal(id);
     });
+
+    session.disposables.push(dataListener, exitListener);
 
     this.managedTerminals.set(id, session);
     
@@ -133,6 +138,7 @@ export class TerminalManager {
   killTerminal(id: string): void {
     const session = this.managedTerminals.get(id);
     if (session) {
+      session.disposables.forEach(d => d.dispose());
       try {
         session.ptyProcess.kill();
       } catch (err) {
@@ -149,6 +155,7 @@ export class TerminalManager {
 
   dispose(): void {
     for (const [, session] of this.managedTerminals) {
+      session.disposables.forEach(d => d.dispose());
       try {
         session.ptyProcess.kill();
       } catch (err) {}

@@ -19,7 +19,7 @@ interface TerminalInfo {
   const terminalContainer = document.getElementById('terminalContainer')!;
   const emptyState = document.getElementById('emptyState')!;
 
-  const terminalInstances: Map<string, { term: Terminal; fitAddon: FitAddon; container: HTMLDivElement }> = new Map();
+  const terminalInstances: Map<string, { term: Terminal; fitAddon: FitAddon; container: HTMLDivElement; resizeObserver: ResizeObserver }> = new Map();
   let activeTerminalId: string | null = null;
 
   function createTerminalInstance(id: string) {
@@ -72,7 +72,7 @@ interface TerminalInfo {
     });
     resizeObserver.observe(container);
 
-    terminalInstances.set(id, { term, fitAddon, container });
+    terminalInstances.set(id, { term, fitAddon, container, resizeObserver });
 
     // Request the backlog of data for this terminal
     vscode.postMessage({ type: 'requestBacklog', terminalId: id });
@@ -128,6 +128,7 @@ interface TerminalInfo {
     const activeIds = new Set(terminals.map(t => t.id));
     for (const [id, inst] of terminalInstances) {
       if (!activeIds.has(id)) {
+        inst.resizeObserver.disconnect();
         inst.term.dispose();
         inst.container.remove();
         terminalInstances.delete(id);
@@ -147,21 +148,25 @@ interface TerminalInfo {
       const inst = terminalInstances.get(t.id);
       if (inst) {
         if (t.isActive) {
+          const wasActive = activeTerminalId === t.id;
           inst.container.style.display = 'block';
           activeId = t.id;
-          // Focus and fit active terminal
-          setTimeout(() => {
-            try {
-              inst.fitAddon.fit();
-              inst.term.focus();
-              vscode.postMessage({
-                type: 'resize',
-                terminalId: t.id,
-                cols: inst.term.cols,
-                rows: inst.term.rows,
-              });
-            } catch (e) {}
-          }, 50);
+          
+          if (!wasActive) {
+            // Focus and fit active terminal only when the active terminal changes
+            setTimeout(() => {
+              try {
+                inst.fitAddon.fit();
+                inst.term.focus();
+                vscode.postMessage({
+                  type: 'resize',
+                  terminalId: t.id,
+                  cols: inst.term.cols,
+                  rows: inst.term.rows,
+                });
+              } catch (e) {}
+            }, 50);
+          }
         } else {
           inst.container.style.display = 'none';
         }

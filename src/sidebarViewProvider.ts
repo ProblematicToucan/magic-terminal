@@ -12,6 +12,7 @@ interface WebviewMessage {
 export class SidebarViewProvider implements vscode.WebviewViewProvider {
   private _view: vscode.WebviewView | null = null;
   private _manager: TerminalManager;
+  private _viewDisposables: vscode.Disposable[] = [];
 
   constructor(private readonly _extensionUri: vscode.Uri) {
     this._manager = new TerminalManager();
@@ -26,6 +27,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     _context: vscode.WebviewViewResolveContext,
     _token: vscode.CancellationToken,
   ): void {
+    this._cleanViewDisposables();
     this._view = webviewView;
 
     webviewView.webview.options = {
@@ -44,18 +46,28 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.html = this._getHtml(webviewUri, cssUri);
 
-    webviewView.webview.onDidReceiveMessage((message: WebviewMessage) => {
-      this._handleMessage(message);
-    });
+    this._viewDisposables.push(
+      webviewView.webview.onDidReceiveMessage((message: WebviewMessage) => {
+        this._handleMessage(message);
+      })
+    );
 
-    webviewView.onDidChangeVisibility(() => {
-      if (webviewView.visible) {
-        if (this._manager.getTerminalIds().length === 0) {
-          this._manager.createTerminal();
+    this._viewDisposables.push(
+      webviewView.onDidChangeVisibility(() => {
+        if (webviewView.visible) {
+          if (this._manager.getTerminalIds().length === 0) {
+            this._manager.createTerminal();
+          }
+          this._postTerminalList();
         }
-        this._postTerminalList();
-      }
-    });
+      })
+    );
+
+    this._viewDisposables.push(
+      webviewView.onDidDispose(() => {
+        this._cleanViewDisposables();
+      })
+    );
 
     if (this._manager.getTerminalIds().length === 0) {
       this._manager.createTerminal();
@@ -76,7 +88,14 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   }
 
   dispose(): void {
+    this._cleanViewDisposables();
     this._manager.dispose();
+  }
+
+  private _cleanViewDisposables(): void {
+    this._viewDisposables.forEach((d) => d.dispose());
+    this._viewDisposables = [];
+    this._view = null;
   }
 
   private _handleMessage(message: WebviewMessage): void {
