@@ -15,10 +15,7 @@
 			"outFiles": [
 				"${workspaceFolder}/dist/**/*.js"
 			],
-			"preLaunchTask": "${defaultBuildTask}",
-			"env": {
-				"NODE_OPTIONS": "--no-deprecation"
-			}
+			"preLaunchTask": "${defaultBuildTask}"
 		}
 	]
 }
