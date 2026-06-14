@@ -1,15 +1,15 @@
 {
   "name": "magic-terminal",
   "displayName": "Magic Terminal",
-  "description": "Terminal in the sidebar with full PTY support",
+  "description": "Native VS Code terminals managed from the sidebar",
+  "publisher": "magic-terminal",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.120.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "esbuild",
-      "node-pty"
+      "esbuild"
     ]
   },
   "categories": [
@@ -50,40 +50,7 @@
         "command": "magic-terminal.killTerminal",
         "title": "Magic Terminal: Kill Active Terminal"
       }
-    ],
-    "configuration": {
-      "title": "Magic Terminal",
-      "properties": {
-        "magic-terminal.shell": {
-          "type": "string",
-          "default": "",
-          "description": "Path to the shell executable. Uses $SHELL or platform default when empty."
-        },
-        "magic-terminal.shellArgs": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": [],
-          "description": "Shell arguments (e.g. ['-l'] for login shell)."
-        },
-        "magic-terminal.cwd": {
-          "type": "string",
-          "default": "",
-          "description": "Working directory for new terminals. Uses workspace root or home when empty."
-        },
-        "magic-terminal.fontFamily": {
-          "type": "string",
-          "default": "",
-          "description": "Font family. Uses editor font when empty."
-        },
-        "magic-terminal.fontSize": {
-          "type": "number",
-          "default": 0,
-          "description": "Font size in px. Uses editor font size when 0."
-        }
-      }
-    }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "pnpm run package",
@@ -99,12 +66,7 @@
     "lint": "eslint src",
     "test": "vscode-test"
   },
-  "dependencies": {
-    "@xterm/addon-fit": "^0.11.0",
-    "@xterm/addon-web-links": "^0.12.0",
-    "@xterm/xterm": "^6.0.0",
-    "node-pty": "^1.1.0"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/vscode": "^1.120.0",
     "@types/mocha": "^10.0.10",

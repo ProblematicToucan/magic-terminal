@@ -1,146 +1,107 @@
-import * as pty from 'node-pty';
-import * as os from 'os';
 import * as vscode from 'vscode';
 
-export interface TerminalInfo {
-  id: string;
-  ptyProcess: pty.IPty;
-  outputBuffer: string[];
-  title: string;
-}
-
 export class TerminalManager {
-  private terminals: Map<string, TerminalInfo> = new Map();
+  private managedTerminals: Map<string, vscode.Terminal> = new Map();
   private activeTerminalId: string | null = null;
   private nextId = 1;
+  private disposables: vscode.Disposable[] = [];
 
-  private outputCallback: ((terminalId: string, data: string) => void) | null = null;
-  private exitCallback: ((terminalId: string, exitCode: number) => void) | null = null;
-  private titleCallback: ((terminalId: string, title: string) => void) | null = null;
+  private changeCallback: (() => void) | null = null;
 
-  onOutput(cb: (terminalId: string, data: string) => void): void {
-    this.outputCallback = cb;
-  }
-
-  onExit(cb: (terminalId: string, exitCode: number) => void): void {
-    this.exitCallback = cb;
-  }
-
-  onTitleChange(cb: (terminalId: string, title: string) => void): void {
-    this.titleCallback = cb;
-  }
-
-  createTerminal(): string {
-    const config = vscode.workspace.getConfiguration('magic-terminal');
-    const shell = config.get<string>('shell') || process.env.SHELL || this.platformDefaultShell();
-    const shellArgs = config.get<string[]>('shellArgs') || [];
-    let cwd = config.get<string>('cwd') || '';
-    if (!cwd) {
-      const workspaceFolders = vscode.workspace.workspaceFolders;
-      cwd = workspaceFolders?.[0]?.uri.fsPath || os.homedir();
-    }
-
-    const id = `terminal-${this.nextId++}`;
-
-    const ptyProcess = pty.spawn(shell, shellArgs, {
-      name: 'xterm-256color',
-      cols: 80,
-      rows: 24,
-      cwd,
-      env: { ...process.env, TERM: 'xterm-256color' } as { [key: string]: string },
-    });
-
-    const info: TerminalInfo = {
-      id,
-      ptyProcess,
-      outputBuffer: [],
-      title: `Terminal ${this.nextId - 1}`,
-    };
-
-    ptyProcess.onData((data: string) => {
-      if (id === this.activeTerminalId) {
-        this.outputCallback?.(id, data);
-      } else {
-        info.outputBuffer.push(data);
-        if (info.outputBuffer.length > 500) {
-          info.outputBuffer.shift();
+  constructor() {
+    this.disposables.push(
+      vscode.window.onDidCloseTerminal((terminal) => {
+        for (const [id, t] of this.managedTerminals) {
+          if (t === terminal) {
+            this.managedTerminals.delete(id);
+            if (this.activeTerminalId === id) {
+              this.activeTerminalId = null;
+            }
+            this.notifyChange();
+            return;
+          }
         }
-      }
+      }),
+      vscode.window.onDidChangeActiveTerminal((terminal) => {
+        if (!terminal) { return; }
+        for (const [id, t] of this.managedTerminals) {
+          if (t === terminal) {
+            this.activeTerminalId = id;
+            this.notifyChange();
+            return;
+          }
+        }
+      }),
+    );
+  }
+
+  onChange(cb: () => void): void {
+    this.changeCallback = cb;
+  }
+
+  createTerminal(name?: string): string {
+    const id = `terminal-${this.nextId++}`;
+    const displayName = name || `Terminal ${this.nextId - 1}`;
+
+    const terminal = vscode.window.createTerminal({
+      name: displayName,
+      location: vscode.TerminalLocation.Panel,
     });
 
-    ptyProcess.onExit(({ exitCode }: { exitCode: number }) => {
-      this.exitCallback?.(id, exitCode);
-      this.terminals.delete(id);
-      if (this.activeTerminalId === id) {
-        this.activeTerminalId = null;
-      }
-    });
-
-    this.terminals.set(id, info);
-
+    this.managedTerminals.set(id, terminal);
     if (!this.activeTerminalId) {
       this.activeTerminalId = id;
     }
 
+    this.notifyChange();
     return id;
   }
 
   getTerminalIds(): string[] {
-    return Array.from(this.terminals.keys());
+    return Array.from(this.managedTerminals.keys());
   }
 
-  getTerminalInfo(id: string): TerminalInfo | undefined {
-    return this.terminals.get(id);
+  getTerminalName(id: string): string {
+    return this.managedTerminals.get(id)?.name || '';
   }
 
   getActiveTerminalId(): string | null {
     return this.activeTerminalId;
   }
 
-  setActiveTerminal(id: string): void {
-    this.activeTerminalId = id;
-    const info = this.terminals.get(id);
-    if (info) {
-      for (const data of info.outputBuffer) {
-        this.outputCallback?.(id, data);
-      }
-      info.outputBuffer = [];
-    }
-  }
-
-  writeToTerminal(id: string, data: string): void {
-    const info = this.terminals.get(id);
-    if (info) {
-      info.ptyProcess.write(data);
-    }
-  }
-
-  resizeTerminal(id: string, cols: number, rows: number): void {
-    const info = this.terminals.get(id);
-    if (info) {
-      info.ptyProcess.resize(cols, rows);
+  focusTerminal(id: string): void {
+    const terminal = this.managedTerminals.get(id);
+    if (terminal) {
+      this.activeTerminalId = id;
+      terminal.show();
+      this.notifyChange();
     }
   }
 
   killTerminal(id: string): void {
-    const info = this.terminals.get(id);
-    if (info) {
-      info.ptyProcess.kill();
+    const terminal = this.managedTerminals.get(id);
+    if (terminal) {
+      terminal.dispose();
+      this.managedTerminals.delete(id);
+      if (this.activeTerminalId === id) {
+        this.activeTerminalId = null;
+      }
+      this.notifyChange();
     }
   }
 
   dispose(): void {
-    for (const [, info] of this.terminals) {
-      info.ptyProcess.kill();
+    for (const [, terminal] of this.managedTerminals) {
+      terminal.dispose();
     }
-    this.terminals.clear();
+    this.managedTerminals.clear();
     this.activeTerminalId = null;
+    for (const d of this.disposables) {
+      d.dispose();
+    }
   }
 
-  private platformDefaultShell(): string {
-    if (os.platform() === 'win32') {
-      return process.env.COMSPEC || 'cmd.exe';
-    }
-    return '/bin/bash';
+  private notifyChange(): void {
+    this.changeCallback?.();
   }
 }

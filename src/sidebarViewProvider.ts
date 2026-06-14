@@ -4,35 +4,15 @@ import { TerminalManager } from './terminalManager';
 interface WebviewMessage {
   type: string;
   terminalId?: string;
-  data?: string;
-  cols?: number;
-  rows?: number;
 }
 
 export class SidebarViewProvider implements vscode.WebviewViewProvider {
   private _view: vscode.WebviewView | null = null;
   private _manager: TerminalManager;
 
-  constructor(
-    private readonly _extensionUri: vscode.Uri,
-  ) {
+  constructor() {
     this._manager = new TerminalManager();
-
-    this._manager.onOutput((terminalId, data) => {
-      this._view?.webview.postMessage({
-        type: 'output',
-        terminalId,
-        data,
-      });
-    });
-
-    this._manager.onExit((terminalId, exitCode) => {
-      this._view?.webview.postMessage({
-        type: 'exit',
-        terminalId,
-        exitCode,
-      });
-    });
+    this._manager.onChange(() => this._postTerminalList());
   }
 
   resolveWebviewView(
@@ -44,29 +24,25 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.options = {
       enableScripts: true,
-      localResourceRoots: [
-        vscode.Uri.joinPath(this._extensionUri, 'node_modules', '@xterm'),
-        vscode.Uri.joinPath(this._extensionUri, 'node_modules', 'xterm'),
-      ],
     };
 
-    webviewView.webview.html = this._getHtml(webviewView.webview);
+    webviewView.webview.html = this._getHtml();
 
     webviewView.webview.onDidReceiveMessage((message: WebviewMessage) => {
       this._handleMessage(message);
     });
 
     webviewView.onDidChangeVisibility(() => {
-      if (webviewView.visible && this._manager.getActiveTerminalId() === null) {
+      if (webviewView.visible && this._manager.getTerminalIds().length === 0) {
         this._manager.createTerminal();
       }
+      this._postTerminalList();
     });
   }
 
   createNewTerminal(): void {
     const id = this._manager.createTerminal();
-    this._view?.webview.postMessage({ type: 'terminalCreated', terminalId: id });
-    this._postTerminalList();
+    this._manager.focusTerminal(id);
   }
 
   killActiveTerminal(): void {
@@ -82,36 +58,20 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
   private _handleMessage(message: WebviewMessage): void {
     switch (message.type) {
-      case 'input': {
-        if (message.terminalId && message.data != null) {
-          this._manager.writeToTerminal(message.terminalId, message.data);
-        }
-        break;
-      }
-      case 'resize': {
-        if (message.terminalId && message.cols && message.rows) {
-          this._manager.resizeTerminal(message.terminalId, message.cols, message.rows);
-        }
-        break;
-      }
       case 'createTerminal': {
         const id = this._manager.createTerminal();
-        this._view?.webview.postMessage({ type: 'terminalCreated', terminalId: id });
-        this._postTerminalList();
+        this._manager.focusTerminal(id);
         break;
       }
       case 'focusTerminal': {
         if (message.terminalId) {
-          this._manager.setActiveTerminal(message.terminalId);
-          this._view?.webview.postMessage({ type: 'terminalFocused', terminalId: message.terminalId });
+          this._manager.focusTerminal(message.terminalId);
         }
         break;
       }
       case 'killTerminal': {
         if (message.terminalId) {
           this._manager.killTerminal(message.terminalId);
-          this._view?.webview.postMessage({ type: 'terminalKilled', terminalId: message.terminalId });
-          this._postTerminalList();
         }
         break;
       }
@@ -125,34 +85,22 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   private _postTerminalList(): void {
     const ids = this._manager.getTerminalIds();
     const activeId = this._manager.getActiveTerminalId();
-    this._view?.webview.postMessage({
-      type: 'terminalList',
-      terminals: ids.map((id) => ({ id, isActive: id === activeId })),
-    });
+    const terminals = ids.map((id) => ({
+      id,
+      name: this._manager.getTerminalName(id),
+      isActive: id === activeId,
+    }));
+    this._view?.webview.postMessage({ type: 'terminalList', terminals });
   }
 
-  private _getHtml(webview: vscode.Webview): string {
-    const xtermUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'node_modules', '@xterm', 'xterm', 'lib', 'xterm.js'),
-    );
-    const xtermCssUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'node_modules', '@xterm', 'xterm', 'css', 'xterm.css'),
-    );
-    const fitAddonUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'node_modules', '@xterm', 'addon-fit', 'lib', 'addon-fit.js'),
-    );
-    const webLinksUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'node_modules', '@xterm', 'addon-web-links', 'lib', 'addon-web-links.js'),
-    );
-
+  private _getHtml(): string {
     const nonce = this._getNonce();
 
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; font-src ${webview.cspSource};">
-  <link rel="stylesheet" href="${xtermCssUri}">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
   <style nonce="${nonce}">
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -161,52 +109,56 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      background-color: var(--vscode-panel-background, #1e1e1e);
-      color: var(--vscode-panel-foreground, #cccccc);
+      background-color: var(--vscode-sideBar-background);
+      color: var(--vscode-sideBar-foreground);
+      font-family: var(--vscode-font-family);
+      font-size: 12px;
     }
 
     .tab-bar {
       display: flex;
-      align-items: center;
-      background-color: var(--vscode-editor-background, #1e1e1e);
-      border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, #3c3c3c);
-      min-height: 35px;
+      align-items: stretch;
+      background-color: var(--vscode-editor-background);
+      border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
+      min-height: 32px;
       flex-shrink: 0;
       overflow-x: auto;
     }
 
     .tab-bar::-webkit-scrollbar { height: 3px; }
     .tab-bar::-webkit-scrollbar-thumb {
-      background-color: var(--vscode-scrollbarSlider-background, #424242);
+      background-color: var(--vscode-scrollbarSlider-background);
+      border-radius: 2px;
     }
 
     .tab {
       display: flex;
       align-items: center;
-      padding: 4px 12px;
+      padding: 0 10px;
       cursor: pointer;
-      color: var(--vscode-tab-inactiveForeground, #999);
-      background-color: var(--vscode-tab-inactiveBackground, #2d2d2d);
-      border-right: 1px solid var(--vscode-sideBarSectionHeader-border, #3c3c3c);
+      color: var(--vscode-tab-inactiveForeground);
+      background-color: var(--vscode-tab-inactiveBackground);
+      border-right: 1px solid var(--vscode-sideBarSectionHeader-border);
       font-size: 12px;
       white-space: nowrap;
       user-select: none;
-      height: 100%;
-      gap: 8px;
+      gap: 6px;
+      height: 32px;
+      flex-shrink: 0;
     }
 
     .tab.active {
-      color: var(--vscode-tab-activeForeground, #ffffff);
-      background-color: var(--vscode-tab-activeBackground, #1e1e1e);
-      border-bottom: 2px solid var(--vscode-tab-activeBorderTop, #007acc);
+      color: var(--vscode-tab-activeForeground);
+      background-color: var(--vscode-tab-activeBackground);
+      border-bottom: 2px solid var(--vscode-tab-activeBorderTop);
     }
 
     .tab:hover:not(.active) {
-      background-color: var(--vscode-tab-hoverBackground, #353535);
+      background-color: var(--vscode-tab-hoverBackground);
     }
 
     .tab .label {
-      max-width: 120px;
+      max-width: 140px;
       overflow: hidden;
       text-overflow: ellipsis;
     }
@@ -218,42 +170,59 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       width: 16px;
       height: 16px;
       border-radius: 3px;
-      font-size: 12px;
+      font-size: 11px;
       line-height: 1;
-      color: var(--vscode-tab-inactiveForeground, #999);
+      flex-shrink: 0;
+      opacity: 0.7;
     }
 
+    .tab:hover .close-btn { opacity: 1; }
     .tab .close-btn:hover {
-      background-color: rgba(255, 255, 255, 0.12);
-      color: var(--vscode-tab-activeForeground, #fff);
+      background-color: rgba(255, 255, 255, 0.15);
     }
 
     .new-tab-btn {
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 30px;
-      min-height: 35px;
+      min-width: 32px;
+      height: 32px;
       cursor: pointer;
-      color: var(--vscode-tab-inactiveForeground, #999);
+      color: var(--vscode-tab-inactiveForeground);
       font-size: 16px;
       flex-shrink: 0;
+      border-right: 1px solid var(--vscode-sideBarSectionHeader-border);
     }
 
     .new-tab-btn:hover {
-      background-color: var(--vscode-tab-hoverBackground, #353535);
-      color: var(--vscode-tab-activeForeground, #fff);
+      background-color: var(--vscode-tab-hoverBackground);
+      color: var(--vscode-tab-activeForeground);
     }
 
-    .terminal-container {
+    .empty-state {
       flex: 1;
-      padding: 4px;
-      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
     }
 
-    .xterm-wrapper {
-      width: 100%;
-      height: 100%;
+    .empty-state .hint {
+      font-size: 11px;
+      opacity: 0.7;
+    }
+
+    .empty-state kbd {
+      display: inline-block;
+      background-color: var(--vscode-badge-background);
+      color: var(--vscode-badge-foreground);
+      border-radius: 3px;
+      padding: 0 4px;
+      font-size: 10px;
+      font-family: var(--vscode-font-family);
     }
   </style>
 </head>
@@ -261,82 +230,26 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   <div class="tab-bar" id="tabBar">
     <div class="new-tab-btn" id="newTabBtn" title="New Terminal">+</div>
   </div>
-  <div class="terminal-container">
-    <div class="xterm-wrapper" id="terminal"></div>
+  <div id="emptyState" class="empty-state">
+    <div>No terminals open</div>
+    <div class="hint">Click <kbd>+</kbd> to create one</div>
   </div>
 
-  <script nonce="${nonce}" src="${xtermUri}"></script>
-  <script nonce="${nonce}" src="${fitAddonUri}"></script>
-  <script nonce="${nonce}" src="${webLinksUri}"></script>
   <script nonce="${nonce}">
     (function () {
       const vscode = acquireVsCodeApi();
 
-      let terminals = [];
-      let activeTerminalId = null;
-      let term = null;
-      let fitAddon = null;
-      let webLinksAddon = null;
-
       const tabBar = document.getElementById('tabBar');
-      const terminalEl = document.getElementById('terminal');
+      const emptyState = document.getElementById('emptyState');
 
-      function initXterm() {
-        if (term) { term.dispose(); }
-        terminalEl.innerHTML = '';
+      function renderTabBar(terminals) {
+        tabBar.querySelectorAll('.tab').forEach(function (t) { t.remove(); });
 
-        const bg = getComputedStyle(document.body).getPropertyValue('--vscode-panel-background').trim() || '#1e1e1e';
-        const fg = getComputedStyle(document.body).getPropertyValue('--vscode-panel-foreground').trim() || '#cccccc';
-        const cursor = getComputedStyle(document.body).getPropertyValue('--vscode-focusBorder').trim() || '#007acc';
-
-        term = new Terminal({
-          cursorBlink: true,
-          cursorStyle: 'bar',
-          fontSize: 13,
-          fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-          theme: {
-            background: bg,
-            foreground: fg,
-            cursor: cursor,
-            selectionBackground: 'rgba(0, 122, 204, 0.3)',
-          },
-          allowProposedApi: true,
-        });
-
-        fitAddon = new FitAddon.FitAddon();
-        webLinksAddon = new WebLinksAddon.WebLinksAddon();
-        term.loadAddon(fitAddon);
-        term.loadAddon(webLinksAddon);
-
-        term.open(terminalEl);
-
-        term.onData(function (data) {
-          if (activeTerminalId) {
-            vscode.postMessage({ type: 'input', terminalId: activeTerminalId, data: data });
-          }
-        });
-
-        term.onResize(function (size) {
-          if (activeTerminalId) {
-            vscode.postMessage({ type: 'resize', terminalId: activeTerminalId, cols: size.cols, rows: size.rows });
-          }
-        });
-
-        setTimeout(function () {
-          try { fitAddon.fit(); } catch (_) {}
-        }, 50);
-      }
-
-      var resizeObserver = new ResizeObserver(function () {
-        if (fitAddon) {
-          try { fitAddon.fit(); } catch (_) {}
+        if (!terminals || terminals.length === 0) {
+          emptyState.style.display = 'flex';
+        } else {
+          emptyState.style.display = 'none';
         }
-      });
-      resizeObserver.observe(terminalEl);
-
-      function renderTabBar() {
-        var existingTabs = tabBar.querySelectorAll('.tab');
-        existingTabs.forEach(function (t) { t.remove(); });
 
         terminals.forEach(function (t) {
           var tabEl = document.createElement('div');
@@ -345,12 +258,12 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
           var label = document.createElement('span');
           label.className = 'label';
-          label.textContent = t.id.replace('terminal-', 'Terminal ');
+          label.textContent = t.name;
           tabEl.appendChild(label);
 
           var closeBtn = document.createElement('span');
           closeBtn.className = 'close-btn';
-          closeBtn.textContent = '✕';
+          closeBtn.innerHTML = '&#x2715;';
           closeBtn.title = 'Close terminal';
           closeBtn.addEventListener('click', function (e) {
             e.stopPropagation();
@@ -359,66 +272,17 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
           tabEl.appendChild(closeBtn);
 
           tabEl.addEventListener('click', function () {
-            if (t.id !== activeTerminalId) {
-              vscode.postMessage({ type: 'focusTerminal', terminalId: t.id });
-            }
+            vscode.postMessage({ type: 'focusTerminal', terminalId: t.id });
           });
 
           tabBar.appendChild(tabEl);
         });
       }
 
-      function setActiveTerminal(id) {
-        activeTerminalId = id;
-        if (term) { term.clear(); }
-        renderTabBar();
-      }
-
       window.addEventListener('message', function (event) {
         var msg = event.data;
-        switch (msg.type) {
-          case 'terminalCreated':
-            terminals.push({ id: msg.terminalId, isActive: false });
-            renderTabBar();
-            if (!activeTerminalId) {
-              vscode.postMessage({ type: 'focusTerminal', terminalId: msg.terminalId });
-            }
-            break;
-
-          case 'terminalKilled':
-            terminals = terminals.filter(function (t) { return t.id !== msg.terminalId; });
-            if (activeTerminalId === msg.terminalId) {
-              activeTerminalId = terminals.length > 0 ? terminals[0].id : null;
-              if (activeTerminalId) {
-                vscode.postMessage({ type: 'focusTerminal', terminalId: activeTerminalId });
-              }
-            }
-            renderTabBar();
-            break;
-
-          case 'terminalFocused':
-            setActiveTerminal(msg.terminalId);
-            if (fitAddon) {
-              setTimeout(function () { try { fitAddon.fit(); } catch (_) {} }, 30);
-            }
-            break;
-
-          case 'terminalList':
-            terminals = msg.terminals;
-            renderTabBar();
-            break;
-
-          case 'output':
-            if (msg.terminalId === activeTerminalId && term) {
-              term.write(msg.data);
-            }
-            break;
-
-          case 'exit':
-            if (term && msg.terminalId === activeTerminalId) {
-              term.write('\\r\\n[Process exited with code ' + msg.exitCode + ']\\r\\n');
-            }
-            break;
+        if (msg.type === 'terminalList') {
+          renderTabBar(msg.terminals);
         }
       });
 
@@ -426,7 +290,6 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
         vscode.postMessage({ type: 'createTerminal' });
       });
 
-      initXterm();
       vscode.postMessage({ type: 'requestTerminalList' });
       vscode.postMessage({ type: 'createTerminal' });
     })();

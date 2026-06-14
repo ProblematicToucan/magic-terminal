@@ -1,18 +1,10 @@
-// Suppress Node.js punycode deprecation (DEP0040) — triggered by dependencies in the Extension Host
-const _emitWarning = process.emitWarning;
-process.emitWarning = function (warning, ...args: any[]) {
-  if (typeof warning === 'string' && warning.includes('punycode')) return;
-  if (warning && typeof warning === 'object' && (warning as any).code === 'DEP0040') return;
-  return _emitWarning.call(process, warning, ...args);
-};
-
 import * as vscode from 'vscode';
 import { SidebarViewProvider } from './sidebarViewProvider';
 
 export function activate(context: vscode.ExtensionContext) {
   console.log('Magic Terminal is now active!');
 
-  const provider = new SidebarViewProvider(context.extensionUri);
+  const provider = new SidebarViewProvider();
 
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(
