@@ -162,88 +162,101 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       font-size: 12px;
     }
 
-    .tab-bar {
-      display: flex;
-      align-items: stretch;
-      background-color: var(--vscode-editor-background);
-      border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
-      min-height: 32px;
-      flex-shrink: 0;
-      overflow-x: auto;
-    }
-
-    .tab-bar::-webkit-scrollbar { height: 3px; }
-    .tab-bar::-webkit-scrollbar-thumb {
-      background-color: var(--vscode-scrollbarSlider-background);
-      border-radius: 2px;
-    }
-
-    .tab {
+    .header-bar {
       display: flex;
       align-items: center;
-      padding: 0 10px;
+      justify-content: space-between;
+      background-color: var(--vscode-editor-background);
+      border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-panel-border));
+      padding: 4px 8px;
+      min-height: 36px;
+      flex-shrink: 0;
+      gap: 8px;
+    }
+
+    .select-container {
+      flex: 1;
+      min-width: 0;
+      position: relative;
+    }
+
+    .select-container::after {
+      content: '';
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 4px solid var(--vscode-dropdown-foreground, var(--vscode-settings-selectForeground, #cccccc));
+      pointer-events: none;
+    }
+
+    .terminal-select {
+      width: 100%;
+      height: 24px;
+      background-color: var(--vscode-dropdown-background, var(--vscode-settings-selectBackground, #3c3c3c));
+      color: var(--vscode-dropdown-foreground, var(--vscode-settings-selectForeground, #cccccc));
+      border: 1px solid var(--vscode-dropdown-border, var(--vscode-settings-selectBorder, #3c3c3c));
+      border-radius: 4px;
+      padding: 0 8px;
+      padding-right: 24px;
+      font-family: var(--vscode-font-family);
+      font-size: 11px;
+      outline: none;
       cursor: pointer;
-      color: var(--vscode-tab-inactiveForeground);
-      background-color: var(--vscode-tab-inactiveBackground);
-      border-right: 1px solid var(--vscode-sideBarSectionHeader-border);
-      font-size: 12px;
-      white-space: nowrap;
-      user-select: none;
-      gap: 6px;
-      height: 32px;
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+    }
+
+    .terminal-select:focus {
+      border-color: var(--vscode-focusBorder);
+    }
+
+    .terminal-select:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .action-buttons {
+      display: flex;
+      align-items: center;
+      gap: 4px;
       flex-shrink: 0;
     }
 
-    .tab.active {
-      color: var(--vscode-tab-activeForeground);
-      background-color: var(--vscode-tab-activeBackground);
-      border-bottom: 2px solid var(--vscode-tab-activeBorderTop);
-    }
-
-    .tab:hover:not(.active) {
-      background-color: var(--vscode-tab-hoverBackground);
-    }
-
-    .tab .label {
-      max-width: 140px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .tab .close-btn {
+    .action-btn {
       display: flex;
       align-items: center;
       justify-content: center;
+      width: 24px;
+      height: 24px;
+      border: none;
+      background: transparent;
+      color: var(--vscode-icon-foreground, var(--vscode-foreground));
+      cursor: pointer;
+      border-radius: 4px;
+      outline: none;
+    }
+
+    .action-btn:hover {
+      background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+    }
+
+    .action-btn:active {
+      background-color: var(--vscode-toolbar-activeBackground, rgba(90, 93, 94, 0.5));
+    }
+
+    .action-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    .action-btn svg {
       width: 16px;
       height: 16px;
-      border-radius: 3px;
-      font-size: 11px;
-      line-height: 1;
-      flex-shrink: 0;
-      opacity: 0.7;
-    }
-
-    .tab:hover .close-btn { opacity: 1; }
-    .tab .close-btn:hover {
-      background-color: rgba(255, 255, 255, 0.15);
-    }
-
-    .new-tab-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 32px;
-      height: 32px;
-      cursor: pointer;
-      color: var(--vscode-tab-inactiveForeground);
-      font-size: 16px;
-      flex-shrink: 0;
-      border-right: 1px solid var(--vscode-sideBarSectionHeader-border);
-    }
-
-    .new-tab-btn:hover {
-      background-color: var(--vscode-tab-hoverBackground);
-      color: var(--vscode-tab-activeForeground);
     }
 
     .empty-state {
@@ -290,8 +303,22 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   </style>
 </head>
 <body>
-  <div class="tab-bar" id="tabBar">
-    <div class="new-tab-btn" id="newTabBtn" title="New Terminal">+</div>
+  <div class="header-bar" id="headerBar">
+    <div class="select-container">
+      <select id="terminalSelect" class="terminal-select"></select>
+    </div>
+    <div class="action-buttons">
+      <button class="action-btn" id="newTerminalBtn" title="New Terminal">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path fill-rule="evenodd" clip-rule="evenodd" d="M8 2.5a.5.5 0 0 1 .5.5v4.5H13a.5.5 0 0 1 0 1H8.5V13a.5.5 0 0 1-1 0V8.5H3a.5.5 0 0 1 0-1h4.5V3a.5.5 0 0 1 .5-.5z"/>
+        </svg>
+      </button>
+      <button class="action-btn" id="killTerminalBtn" title="Kill Active Terminal">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path fill-rule="evenodd" clip-rule="evenodd" d="M10 3h3v1h-1v9l-1 1H5l-1-1V4H3V3h3V2h4v1zM5 13h6V4H5v9zm2-7H6v5h1V6zm3 0H9v5h1V6z"/>
+        </svg>
+      </button>
+    </div>
   </div>
   <div id="emptyState" class="empty-state" style="display: none;">
     <div>No terminals open</div>

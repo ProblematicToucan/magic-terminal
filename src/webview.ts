@@ -12,10 +12,11 @@ interface TerminalInfo {
   // @ts-ignore
   const vscode = acquireVsCodeApi();
 
-  const tabBar = document.getElementById('tabBar')!;
+  const terminalSelect = document.getElementById('terminalSelect') as HTMLSelectElement;
+  const newTerminalBtn = document.getElementById('newTerminalBtn')!;
+  const killTerminalBtn = document.getElementById('killTerminalBtn') as HTMLButtonElement;
   const terminalContainer = document.getElementById('terminalContainer')!;
   const emptyState = document.getElementById('emptyState')!;
-  const newTabBtn = document.getElementById('newTabBtn')!;
 
   const terminalInstances: Map<string, { term: Terminal; fitAddon: FitAddon; container: HTMLDivElement }> = new Map();
   let activeTerminalId: string | null = null;
@@ -168,35 +169,27 @@ interface TerminalInfo {
 
     activeTerminalId = activeId;
 
-    // 4. Update tab buttons
-    tabBar.querySelectorAll('.tab').forEach((t) => t.remove());
+    // 4. Update dropdown options
+    terminalSelect.innerHTML = '';
 
-    terminals.forEach((t) => {
-      const tabEl = document.createElement('div');
-      tabEl.className = 'tab' + (t.isActive ? ' active' : '');
-      tabEl.dataset.id = t.id;
-
-      const label = document.createElement('span');
-      label.className = 'label';
-      label.textContent = t.name;
-      tabEl.appendChild(label);
-
-      const closeBtn = document.createElement('span');
-      closeBtn.className = 'close-btn';
-      closeBtn.innerHTML = '&#x2715;';
-      closeBtn.title = 'Close terminal';
-      closeBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        vscode.postMessage({ type: 'killTerminal', terminalId: t.id });
+    if (terminals.length === 0) {
+      const option = document.createElement('option');
+      option.text = 'No Terminals';
+      option.value = '';
+      terminalSelect.appendChild(option);
+      terminalSelect.disabled = true;
+      killTerminalBtn.disabled = true;
+    } else {
+      terminalSelect.disabled = false;
+      killTerminalBtn.disabled = false;
+      terminals.forEach((t) => {
+        const option = document.createElement('option');
+        option.value = t.id;
+        option.text = t.name;
+        option.selected = t.isActive;
+        terminalSelect.appendChild(option);
       });
-      tabEl.appendChild(closeBtn);
-
-      tabEl.addEventListener('click', () => {
-        vscode.postMessage({ type: 'focusTerminal', terminalId: t.id });
-      });
-
-      tabBar.insertBefore(tabEl, newTabBtn);
-    });
+    }
 
     // 5. Update empty state visibility
     if (terminals.length === 0) {
@@ -239,6 +232,26 @@ interface TerminalInfo {
       if (inst) {
         inst.term.focus();
       }
+    }
+  });
+
+  // Dropdown selection change
+  terminalSelect.addEventListener('change', () => {
+    const selectedId = terminalSelect.value;
+    if (selectedId) {
+      vscode.postMessage({ type: 'focusTerminal', terminalId: selectedId });
+    }
+  });
+
+  // Create terminal click
+  newTerminalBtn.addEventListener('click', () => {
+    vscode.postMessage({ type: 'createTerminal' });
+  });
+
+  // Kill terminal click
+  killTerminalBtn.addEventListener('click', () => {
+    if (activeTerminalId) {
+      vscode.postMessage({ type: 'killTerminal', terminalId: activeTerminalId });
     }
   });
 
