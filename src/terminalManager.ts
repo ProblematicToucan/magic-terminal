@@ -35,11 +35,27 @@ export class TerminalManager {
     const shell = this.getShellPath();
     const cwd = path.resolve(this.getWorkspaceFolder());
 
-    const env = {
-      ...process.env,
+    const env: Record<string, string> = {
       TERM: "xterm-256color",
       COLORTERM: "truecolor",
-    } as Record<string, string>;
+    };
+
+    // Copy only safe environment variables — strip VS Code / Electron
+    // injected vars that trigger shell integration scripts
+    for (const key of Object.keys(process.env)) {
+      if (
+        key === 'TERM_PROGRAM' ||
+        key === 'TERM_PROGRAM_VERSION' ||
+        key.startsWith('VSCODE_') ||
+        key.startsWith('ELECTRON_')
+      ) {
+        continue;
+      }
+      const val = process.env[key];
+      if (val !== undefined) {
+        env[key] = val;
+      }
+    }
 
     const ptyProcess = pty.spawn(shell, [], {
       name: "xterm-256color",

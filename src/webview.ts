@@ -1,6 +1,10 @@
-import { Terminal } from "@xterm/xterm";
-import { FitAddon } from "@xterm/addon-fit";
-import { WebLinksAddon } from "@xterm/addon-web-links";
+import type { Terminal as ITerminal } from "@xterm/xterm";
+import type { FitAddon as IFitAddon } from "@xterm/addon-fit";
+import type { WebLinksAddon as IWebLinksAddon } from "@xterm/addon-web-links";
+
+declare const Terminal: new (options?: any) => ITerminal;
+declare const FitAddon: new () => IFitAddon;
+declare const WebLinksAddon: new () => IWebLinksAddon;
 
 interface TerminalInfo {
   id: string;
@@ -22,8 +26,8 @@ interface TerminalInfo {
   const terminalInstances: Map<
     string,
     {
-      term: Terminal;
-      fitAddon: FitAddon;
+      term: ITerminal;
+      fitAddon: IFitAddon;
       container: HTMLDivElement;
       resizeObserver: ResizeObserver;
       fitTimeout: ReturnType<typeof setTimeout> | null;

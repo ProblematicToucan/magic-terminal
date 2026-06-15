@@ -37,6 +37,12 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       ]
     };
 
+    const loaderUri = webviewView.webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, 'dist', 'vendor', 'xterm-loader.js')
+    );
+    const coreUri = webviewView.webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, 'dist', 'vendor', 'xterm-core.gz')
+    );
     const webviewUri = webviewView.webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, 'dist', 'webview.js')
     );
@@ -44,7 +50,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       vscode.Uri.joinPath(this._extensionUri, 'dist', 'xterm.css')
     );
 
-    webviewView.webview.html = this._getHtml(webviewUri, cssUri);
+    webviewView.webview.html = this._getHtml(loaderUri, coreUri, webviewUri, cssUri);
 
     this._viewDisposables.push(
       webviewView.webview.onDidReceiveMessage((message: WebviewMessage) => {
@@ -158,14 +164,14 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     this._view?.webview.postMessage({ type: 'terminalList', terminals });
   }
 
-  private _getHtml(webviewUri: vscode.Uri, cssUri: vscode.Uri): string {
+  private _getHtml(loaderUri: vscode.Uri, coreUri: vscode.Uri, webviewUri: vscode.Uri, cssUri: vscode.Uri): string {
     const nonce = this._getNonce();
 
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' ${this._view?.webview.cspSource}; script-src 'nonce-${nonce}'; font-src ${this._view?.webview.cspSource};">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' ${this._view?.webview.cspSource}; script-src 'nonce-${nonce}' 'strict-dynamic' blob:; connect-src ${this._view?.webview.cspSource}; font-src ${this._view?.webview.cspSource};">
   <link rel="stylesheet" href="${cssUri}">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -400,7 +406,8 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   </div>
   <div id="terminalContainer"></div>
 
-  <script nonce="${nonce}" src="${webviewUri}"></script>
+  <script nonce="${nonce}">window.__xtermCore='${coreUri}';window.__webview='${webviewUri}'</script>
+  <script nonce="${nonce}" src="${loaderUri}"></script>
 </body>
 </html>`;
   }

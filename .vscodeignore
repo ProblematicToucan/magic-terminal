@@ -3,7 +3,15 @@
 .vscode-test/**
 out/**
 node_modules/**
-!node_modules/node-pty/**
+!node_modules/node-pty/package.json
+!node_modules/node-pty/lib/**
+!node_modules/node-pty/prebuilds/**
+node_modules/node-pty/deps/**
+node_modules/node-pty/src/**
+node_modules/node-pty/third_party/**
+node_modules/node-pty/scripts/**
+node_modules/node-pty/typings/**
+node_modules/node-pty/lib/**/*.test.js
 src/**
 .gitignore
 .yarnrc
