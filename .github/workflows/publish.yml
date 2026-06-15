@@ -34,11 +34,6 @@ jobs:
         with:
           node-version: 20
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: 9
-
       - name: Install Linux ARM64 cross-compilers
         if: matrix.cross_compile && matrix.target == 'linux-arm64'
         run: |
@@ -47,7 +42,7 @@ jobs:
 
       - name: Install dependencies (Standard)
         if: ${{ !matrix.cross_compile }}
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Install dependencies (Cross-compile Linux ARM64)
         if: matrix.cross_compile && matrix.target == 'linux-arm64'
@@ -56,7 +51,7 @@ jobs:
           CXX: aarch64-linux-gnu-g++
           npm_config_arch: arm64
           npm_config_target_arch: arm64
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Package Extension
         run: npx @vscode/vsce package --target ${{ matrix.target }} -o magic-terminal-${{ matrix.target }}.vsix
