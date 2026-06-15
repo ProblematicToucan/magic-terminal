@@ -148,14 +148,10 @@ interface TerminalInfo {
   }
 
   // Monitor theme changes in VS Code
-  const observer = new MutationObserver((mutations) => {
-    mutations.forEach((mutation) => {
-      if (mutation.type === "attributes" && mutation.attributeName === "class") {
-        updateTheme();
-      }
-    });
+  const observer = new MutationObserver(() => {
+    updateTheme();
   });
-  observer.observe(document.body, { attributes: true });
+  observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
 
   function renderTerminals(terminals: TerminalInfo[]) {
     // 1. Remove terminals that were killed

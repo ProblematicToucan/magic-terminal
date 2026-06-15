@@ -17,6 +17,7 @@ export class TerminalManager {
   private activeTerminalId: string | null = null;
   private changeCallback: (() => void) | null = null;
   private dataCallback: ((terminalId: string, data: string) => void) | null = null;
+  private terminalCounter = 0;
 
   onChange(cb: () => void): void {
     this.changeCallback = cb;
@@ -27,22 +28,9 @@ export class TerminalManager {
   }
 
   createTerminal(name?: string): string {
-    let k = 1;
-    while (true) {
-      const candidateName = `Terminal ${k}`;
-      const candidateId = `terminal-${k}`;
-      const nameExists = Array.from(this.managedTerminals.values()).some(
-        (session) => session.name === candidateName,
-      );
-      const idExists = this.managedTerminals.has(candidateId);
-      if (!nameExists && !idExists) {
-        break;
-      }
-      k++;
-    }
-
-    const id = `terminal-${k}`;
-    const displayName = name || `Terminal ${k}`;
+    this.terminalCounter++;
+    const id = `terminal-${this.terminalCounter}`;
+    const displayName = name || `Terminal ${this.terminalCounter}`;
 
     const shell = this.getShellPath();
     const cwd = path.resolve(this.getWorkspaceFolder());
