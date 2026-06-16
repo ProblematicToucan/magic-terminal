@@ -61,6 +61,17 @@
       {
         "command": "magic-terminal.killTerminal",
         "title": "Magic Terminal: Kill Active Terminal"
+      },
+      {
+        "command": "magic-terminal.insertFileReference",
+        "title": "Magic Terminal: Insert File Reference"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "magic-terminal.insertFileReference",
+        "key": "ctrl+alt+k",
+        "mac": "cmd+alt+k"
       }
     ]
   },

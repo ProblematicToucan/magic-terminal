@@ -33,6 +33,12 @@ export function activate(context: vscode.ExtensionContext) {
     }),
   );
 
+  context.subscriptions.push(
+    vscode.commands.registerCommand('magic-terminal.insertFileReference', () => {
+      provider.insertFileReference();
+    }),
+  );
+
   context.subscriptions.push(provider);
 }
 

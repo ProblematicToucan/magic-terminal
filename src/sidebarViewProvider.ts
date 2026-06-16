@@ -1,3 +1,4 @@
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { TerminalManager } from './terminalManager';
 import { IpcServer, type ActiveFileInfo } from './ipcServer';
@@ -99,6 +100,42 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     const activeId = this._manager.getActiveTerminalId();
     if (activeId) {
       this._manager.killTerminal(activeId);
+    }
+  }
+
+  insertFileReference(): void {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) { return; }
+
+    const doc = editor.document;
+    const workspaceFolder = vscode.workspace.getWorkspaceFolder(doc.uri)?.uri.fsPath;
+    if (!workspaceFolder) { return; }
+
+    const relPath = path.relative(workspaceFolder, doc.uri.fsPath);
+    if (!relPath) { return; }
+
+    let startLine: number;
+    let endLine: number;
+
+    if (!editor.selection.isEmpty) {
+      startLine = editor.selection.start.line;
+      endLine = editor.selection.end.line;
+    } else {
+      const cursorLine = editor.selection.active.line;
+      startLine = cursorLine;
+      endLine = cursorLine;
+    }
+
+    let ref = `@${relPath}`;
+    if (startLine === endLine) {
+      ref += `#L${startLine + 1}`;
+    } else {
+      ref += `#L${startLine + 1}-${endLine + 1}`;
+    }
+
+    const activeId = this._manager.getActiveTerminalId();
+    if (activeId) {
+      this._manager.writeInput(activeId, ref);
     }
   }
 
