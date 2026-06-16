@@ -24,9 +24,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     });
 
     this._ipcServer = new IpcServer();
-    this._ipcServer.start().then((port) => {
-      this._manager.setIpcPort(port);
-    });
+    this._ipcServer.start();
 
     this._updateActiveFile();
     vscode.window.onDidChangeActiveTextEditor(() => this._updateActiveFile());

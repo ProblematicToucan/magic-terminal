@@ -15,7 +15,7 @@ interface JsonRpcMessage {
 }
 
 function createTempDir(): string {
-  const dir = path.join(os.tmpdir(), `magic-terminal-ipc-test-${Date.now()}`);
+  const dir = path.join(os.tmpdir(), `magic-terminal-test-${Date.now()}`);
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
@@ -35,7 +35,6 @@ function connect(port: number, authToken?: string): Promise<WebSocket> {
 
     ws.on("open", () => resolve(ws));
     ws.on("error", reject);
-
     setTimeout(() => reject(new Error("WebSocket connection timeout")), 2000);
   });
 }
@@ -121,10 +120,7 @@ suite("IpcServer", () => {
     const msg = await waitForMessage(ws);
 
     assert.strictEqual(msg.method, "selection_changed");
-    assert.strictEqual(
-      (msg.params as any).filePath,
-      "/test/foo.ts",
-    );
+    assert.strictEqual((msg.params as any).filePath, "/test/foo.ts");
     assert.strictEqual((msg.params as any).source, "websocket");
 
     ws.close();
@@ -161,13 +157,13 @@ suite("IpcServer", () => {
     server.stop();
   });
 
-  test("pushes current selection to newly initialized client", async () => {
+  test("pushes current selection on notifications/initialized", async () => {
     const server = new IpcServer({ lockDir: tmpDir });
     const port = await server.start();
     const ws = await connect(port);
 
     server.update({ path: "/test/init.ts", workspaceFolder: "/test" });
-    await waitForMessage(ws); // discard initial broadcast
+    await waitForMessage(ws);
 
     sendMessage(ws, { method: "notifications/initialized" });
     const msg = await waitForMessage(ws);
@@ -197,14 +193,11 @@ suite("IpcServer", () => {
   });
 
   test("rejects connection with wrong auth token", async () => {
-    const server = new IpcServer({
-      lockDir: tmpDir,
-      authToken: "correct-token",
-    });
+    const server = new IpcServer({ lockDir: tmpDir, authToken: "correct" });
     const port = await server.start();
 
     await assert.rejects(
-      () => connect(port, "wrong-token"),
+      () => connect(port, "wrong"),
       /Unexpected server response: 401/,
     );
 
@@ -212,12 +205,9 @@ suite("IpcServer", () => {
   });
 
   test("accepts connection with correct auth token", async () => {
-    const server = new IpcServer({
-      lockDir: tmpDir,
-      authToken: "correct-token",
-    });
+    const server = new IpcServer({ lockDir: tmpDir, authToken: "correct" });
     const port = await server.start();
-    const ws = await connect(port, "correct-token");
+    const ws = await connect(port, "correct");
 
     assert.strictEqual(ws.readyState, WebSocket.OPEN);
 
@@ -225,7 +215,7 @@ suite("IpcServer", () => {
     server.stop();
   });
 
-  test("accepts connection without auth when no token is set", async () => {
+  test("accepts connection without auth token", async () => {
     const server = new IpcServer({ lockDir: tmpDir });
     const port = await server.start();
     const ws = await connect(port);

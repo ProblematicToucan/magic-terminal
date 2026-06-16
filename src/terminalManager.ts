@@ -18,11 +18,6 @@ export class TerminalManager {
   private changeCallback: (() => void) | null = null;
   private dataCallback: ((terminalId: string, data: string) => void) | null = null;
   private terminalCounter = 0;
-  private ipcPort: number | null = null;
-
-  setIpcPort(port: number | null): void {
-    this.ipcPort = port;
-  }
 
   onChange(cb: () => void): void {
     this.changeCallback = cb;
@@ -60,10 +55,6 @@ export class TerminalManager {
       if (val !== undefined) {
         env[key] = val;
       }
-    }
-
-    if (this.ipcPort !== null) {
-      env["MAGIC_TERMINAL_IPC"] = String(this.ipcPort);
     }
 
     const ptyProcess = pty.spawn(shell, [], {
