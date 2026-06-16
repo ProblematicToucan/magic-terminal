@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { TerminalManager } from './terminalManager';
+import { IpcServer, type ActiveFileInfo } from './ipcServer';
 
 interface WebviewMessage {
   type: string;
@@ -13,6 +15,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   private _view: vscode.WebviewView | null = null;
   private _manager: TerminalManager;
   private _viewDisposables: vscode.Disposable[] = [];
+  private _ipcServer: IpcServer;
 
   constructor(private readonly _extensionUri: vscode.Uri) {
     this._manager = new TerminalManager();
@@ -20,6 +23,15 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     this._manager.onData((id, data) => {
       this._view?.webview.postMessage({ type: 'data', terminalId: id, data });
     });
+
+    this._ipcServer = new IpcServer();
+    this._ipcServer.start().then((port) => {
+      this._manager.setIpcPort(port);
+    });
+
+    this._updateActiveFile();
+    vscode.window.onDidChangeActiveTextEditor(() => this._updateActiveFile());
+    vscode.workspace.onDidChangeWorkspaceFolders(() => this._updateActiveFile());
   }
 
   resolveWebviewView(
@@ -96,12 +108,46 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   dispose(): void {
     this._cleanViewDisposables();
     this._manager.dispose();
+    this._ipcServer.stop();
   }
 
   private _cleanViewDisposables(): void {
     this._viewDisposables.forEach((d) => d.dispose());
     this._viewDisposables = [];
     this._view = null;
+  }
+
+  private _updateActiveFile(): void {
+    const editor = vscode.window.activeTextEditor;
+    const doc = editor?.document;
+
+    const workspaceFolder = doc
+      ? vscode.workspace.getWorkspaceFolder(doc.uri)?.uri.fsPath ?? null
+      : null;
+
+    let selection: ActiveFileInfo["selection"] = null;
+    if (editor && !editor.selection.isEmpty) {
+      const sel = editor.selection;
+      const text = doc?.getText(sel) ?? "";
+      selection = {
+        text,
+        startLine: sel.start.line,
+        startCharacter: sel.start.character,
+        endLine: sel.end.line,
+        endCharacter: sel.end.character,
+      };
+    }
+
+    this._ipcServer.update({
+      path: doc?.uri.fsPath ?? null,
+      workspaceFolder,
+      relativePath:
+        doc && workspaceFolder
+          ? path.relative(workspaceFolder, doc.uri.fsPath)
+          : null,
+      languageId: doc?.languageId ?? null,
+      selection,
+    });
   }
 
   private _handleMessage(message: WebviewMessage): void {
