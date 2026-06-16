@@ -1,4 +1,3 @@
-import * as http from "http";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
@@ -8,8 +7,6 @@ import { WebSocketServer, WebSocket } from "ws";
 export interface ActiveFileInfo {
   path: string | null;
   workspaceFolder: string | null;
-  relativePath: string | null;
-  languageId: string | null;
   selection?: {
     text: string;
     startLine: number;
@@ -20,43 +17,21 @@ export interface ActiveFileInfo {
 }
 
 export class IpcServer {
-  private server: http.Server;
   private wss: WebSocketServer;
   private port: number = 0;
   private authToken: string;
   private clients: Set<WebSocket> = new Set();
-  private activeFile: ActiveFileInfo = {
-    path: null,
-    workspaceFolder: null,
-    relativePath: null,
-    languageId: null,
-  };
+  private activeFile: ActiveFileInfo = { path: null, workspaceFolder: null };
 
   constructor() {
     this.authToken = crypto.randomBytes(16).toString("hex");
 
-    this.server = http.createServer((req, res) => {
-      if (req.method === "GET" && req.url === "/active-file") {
-        res.writeHead(200, {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-        });
-        res.end(JSON.stringify(this.activeFile));
-      } else {
-        res.writeHead(404);
-        res.end();
-      }
-    });
-
     this.wss = new WebSocketServer({
-      server: this.server,
+      port: 0,
+      host: "127.0.0.1",
       verifyClient: (info, cb) => {
         const header = info.req.headers["x-claude-code-ide-authorization"];
-        if (header === this.authToken || !header) {
-          cb(true);
-        } else {
-          cb(false, 401, "Unauthorized");
-        }
+        cb(header === this.authToken || !header);
       },
     });
 
@@ -70,8 +45,8 @@ export class IpcServer {
 
   start(): Promise<number> {
     return new Promise((resolve, reject) => {
-      this.server.listen(0, "127.0.0.1", () => {
-        const addr = this.server.address();
+      this.wss.on("listening", () => {
+        const addr = this.wss.address();
         if (addr && typeof addr === "object") {
           this.port = addr.port;
           this.writeLockFile();
@@ -80,7 +55,7 @@ export class IpcServer {
           reject(new Error("Failed to get server port"));
         }
       });
-      this.server.on("error", reject);
+      this.wss.on("error", reject);
     });
   }
 
@@ -91,7 +66,6 @@ export class IpcServer {
     }
     this.clients.clear();
     this.wss.close();
-    this.server.close();
   }
 
   update(info: ActiveFileInfo): void {
@@ -100,7 +74,9 @@ export class IpcServer {
     if (foldersChanged && this.port > 0) {
       this.writeLockFile();
     }
-    this.broadcastSelectionChanged(info);
+    if (info.path) {
+      this.sendSelectionChanged();
+    }
   }
 
   getPort(): number {
@@ -116,24 +92,23 @@ export class IpcServer {
     }
 
     if (msg.method === "initialize") {
-      this.sendJsonRpc(ws, msg.id ?? 1, {
-        protocolVersion: "2025-11-25",
-        serverInfo: { name: "magic-terminal", version: "0.0.1" },
-      });
-      return;
-    }
-
-    if (msg.method === "notifications/initialized") {
-      if (this.activeFile.path) {
-        this.sendSelectionChanged(ws);
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: msg.id ?? 1,
+            result: {
+              protocolVersion: "2025-11-25",
+              serverInfo: { name: "magic-terminal", version: "0.0.1" },
+            },
+          }),
+        );
       }
       return;
     }
-  }
 
-  private sendJsonRpc(ws: WebSocket, id: number | string | null, result: unknown): void {
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ jsonrpc: "2.0", id, result }));
+    if (msg.method === "notifications/initialized" && this.activeFile.path) {
+      this.sendSelectionChanged(ws);
     }
   }
 
@@ -141,36 +116,29 @@ export class IpcServer {
     if (!this.activeFile.path) { return; }
 
     const sel = this.activeFile.selection;
-    const ranges = [
-      {
-        text: sel?.text ?? "",
-        selection: {
-          start: { line: sel?.startLine ?? 0, character: sel?.startCharacter ?? 0 },
-          end: { line: sel?.endLine ?? 0, character: sel?.endCharacter ?? 0 },
-        },
-      },
-    ];
-
     const payload = {
+      jsonrpc: "2.0" as const,
       method: "selection_changed",
       params: {
         filePath: this.activeFile.path,
         source: "websocket" as const,
-        ranges,
+        ranges: [
+          {
+            text: sel?.text ?? "",
+            selection: {
+              start: { line: sel?.startLine ?? 0, character: sel?.startCharacter ?? 0 },
+              end: { line: sel?.endLine ?? 0, character: sel?.endCharacter ?? 0 },
+            },
+          },
+        ],
       },
     };
 
     const clients = target ? [target] : [...this.clients];
     for (const client of clients) {
       if (client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify({ jsonrpc: "2.0", ...payload }));
+        client.send(JSON.stringify(payload));
       }
-    }
-  }
-
-  private broadcastSelectionChanged(info: ActiveFileInfo): void {
-    if (info.path) {
-      this.sendSelectionChanged();
     }
   }
 
@@ -185,15 +153,12 @@ export class IpcServer {
       fs.mkdirSync(dir, { recursive: true });
     }
 
-    const workspaceFolders: string[] = [];
-    if (this.activeFile.workspaceFolder) {
-      workspaceFolders.push(this.activeFile.workspaceFolder);
-    }
-
     const data = {
       transport: "ws",
       authToken: this.authToken,
-      workspaceFolders,
+      workspaceFolders: this.activeFile.workspaceFolder
+        ? [this.activeFile.workspaceFolder]
+        : [],
     };
 
     const tmp = filePath + ".tmp";

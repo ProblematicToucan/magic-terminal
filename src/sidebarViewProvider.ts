@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
 import { TerminalManager } from './terminalManager';
 import { IpcServer, type ActiveFileInfo } from './ipcServer';
 
@@ -141,11 +140,6 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     this._ipcServer.update({
       path: doc?.uri.fsPath ?? null,
       workspaceFolder,
-      relativePath:
-        doc && workspaceFolder
-          ? path.relative(workspaceFolder, doc.uri.fsPath)
-          : null,
-      languageId: doc?.languageId ?? null,
       selection,
     });
   }
