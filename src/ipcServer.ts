@@ -16,15 +16,22 @@ export interface ActiveFileInfo {
   } | null;
 }
 
+export interface IpcServerOptions {
+  lockDir?: string;
+  authToken?: string;
+}
+
 export class IpcServer {
   private wss: WebSocketServer;
   private port: number = 0;
   private authToken: string;
+  private lockDir: string;
   private clients: Set<WebSocket> = new Set();
   private activeFile: ActiveFileInfo = { path: null, workspaceFolder: null };
 
-  constructor() {
-    this.authToken = crypto.randomBytes(16).toString("hex");
+  constructor(options?: IpcServerOptions) {
+    this.authToken = options?.authToken ?? crypto.randomBytes(16).toString("hex");
+    this.lockDir = options?.lockDir ?? path.join(os.homedir(), ".claude", "ide");
 
     this.wss = new WebSocketServer({
       port: 0,
@@ -45,7 +52,7 @@ export class IpcServer {
 
   start(): Promise<number> {
     return new Promise((resolve, reject) => {
-      this.wss.on("listening", () => {
+      this.wss.once("listening", () => {
         const addr = this.wss.address();
         if (addr && typeof addr === "object") {
           this.port = addr.port;
@@ -143,7 +150,7 @@ export class IpcServer {
   }
 
   private lockFilePath(): string {
-    return path.join(os.homedir(), ".claude", "ide", `${this.port}.lock`);
+    return path.join(this.lockDir, `${this.port}.lock`);
   }
 
   private writeLockFile(): void {
