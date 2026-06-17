@@ -108,8 +108,17 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     if (!editor) { return; }
 
     const doc = editor.document;
+    const activeId = this._manager.getActiveTerminalId();
+    if (!activeId) { return; }
+
     const workspaceFolder = vscode.workspace.getWorkspaceFolder(doc.uri)?.uri.fsPath;
-    if (!workspaceFolder) { return; }
+    if (!workspaceFolder) {
+      const text = editor.selection.isEmpty
+        ? doc.lineAt(editor.selection.active.line).text
+        : doc.getText(editor.selection);
+      this._manager.writeInput(activeId, text);
+      return;
+    }
 
     const relPath = path.relative(workspaceFolder, doc.uri.fsPath);
     if (!relPath) { return; }
@@ -133,10 +142,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       ref += `#L${startLine + 1}-${endLine + 1}`;
     }
 
-    const activeId = this._manager.getActiveTerminalId();
-    if (activeId) {
-      this._manager.writeInput(activeId, ref);
-    }
+    this._manager.writeInput(activeId, ref);
   }
 
   dispose(): void {
@@ -158,6 +164,11 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     const workspaceFolder = doc
       ? vscode.workspace.getWorkspaceFolder(doc.uri)?.uri.fsPath ?? null
       : null;
+
+    if (!workspaceFolder) {
+      this._ipcServer.update({ path: null, workspaceFolder: null, selection: null });
+      return;
+    }
 
     let selection: ActiveFileInfo["selection"] = null;
     if (editor && !editor.selection.isEmpty) {
