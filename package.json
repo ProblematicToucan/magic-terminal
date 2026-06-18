@@ -1,18 +1,18 @@
 {
-  "name": "magic-terminal",
-  "displayName": "Magic Terminal",
+  "name": "sideterm",
+  "displayName": "SideTerm",
   "description": "Native VS Code terminals managed from the sidebar",
   "publisher": "ProblematicToucan",
   "version": "0.0.1",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ProblematicToucan/magic-terminal.git"
+    "url": "https://github.com/ProblematicToucan/sideterm.git"
   },
   "bugs": {
-    "url": "https://github.com/ProblematicToucan/magic-terminal/issues"
+    "url": "https://github.com/ProblematicToucan/sideterm/issues"
   },
-  "homepage": "https://github.com/ProblematicToucan/magic-terminal#readme",
+  "homepage": "https://github.com/ProblematicToucan/sideterm#readme",
   "icon": "images/icon.png",
   "engines": {
     "vscode": "^1.120.0"
@@ -25,7 +25,7 @@
     "sidebar",
     "pty",
     "xterm",
-    "magic-terminal"
+    "sideterm"
   ],
   "activationEvents": [],
   "main": "./dist/extension.js",
@@ -33,43 +33,43 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "magic-terminal-sidebar",
-          "title": "Magic Terminal",
+          "id": "sideterm-sidebar",
+          "title": "SideTerm",
           "icon": "$(terminal)"
         }
       ]
     },
     "views": {
-      "magic-terminal-sidebar": [
+      "sideterm-sidebar": [
         {
           "icon": "$(terminal)",
           "type": "webview",
-          "id": "magic-terminal.terminalView",
+          "id": "sideterm.terminalView",
           "name": "Terminal"
         }
       ]
     },
     "commands": [
       {
-        "command": "magic-terminal.toggle",
-        "title": "Magic Terminal: Toggle Terminal"
+        "command": "sideterm.toggle",
+        "title": "SideTerm: Toggle Terminal"
       },
       {
-        "command": "magic-terminal.newTerminal",
-        "title": "Magic Terminal: New Terminal"
+        "command": "sideterm.newTerminal",
+        "title": "SideTerm: New Terminal"
       },
       {
-        "command": "magic-terminal.killTerminal",
-        "title": "Magic Terminal: Kill Active Terminal"
+        "command": "sideterm.killTerminal",
+        "title": "SideTerm: Kill Active Terminal"
       },
       {
-        "command": "magic-terminal.insertFileReference",
-        "title": "Magic Terminal: Insert File Reference"
+        "command": "sideterm.insertFileReference",
+        "title": "SideTerm: Insert File Reference"
       }
     ],
     "keybindings": [
       {
-        "command": "magic-terminal.insertFileReference",
+        "command": "sideterm.insertFileReference",
         "key": "ctrl+alt+k",
         "mac": "cmd+alt+k"
       }

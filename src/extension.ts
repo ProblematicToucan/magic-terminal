@@ -2,39 +2,39 @@ import * as vscode from 'vscode';
 import { SidebarViewProvider } from './sidebarViewProvider';
 
 export function activate(context: vscode.ExtensionContext) {
-  console.log('Magic Terminal is now active!');
+  console.log('SideTerm is now active!');
 
   const provider = new SidebarViewProvider(context.extensionUri);
 
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(
-      'magic-terminal.terminalView',
+      'sideterm.terminalView',
       provider,
       { webviewOptions: { retainContextWhenHidden: true } },
     ),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('magic-terminal.toggle', () => {
-      vscode.commands.executeCommand('workbench.view.extension.magic-terminal-sidebar');
+    vscode.commands.registerCommand('sideterm.toggle', () => {
+      vscode.commands.executeCommand('workbench.view.extension.sideterm-sidebar');
     }),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('magic-terminal.newTerminal', () => {
+    vscode.commands.registerCommand('sideterm.newTerminal', () => {
       provider.createNewTerminal();
-      vscode.commands.executeCommand('workbench.view.extension.magic-terminal-sidebar');
+      vscode.commands.executeCommand('workbench.view.extension.sideterm-sidebar');
     }),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('magic-terminal.killTerminal', () => {
+    vscode.commands.registerCommand('sideterm.killTerminal', () => {
       provider.killActiveTerminal();
     }),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('magic-terminal.insertFileReference', () => {
+    vscode.commands.registerCommand('sideterm.insertFileReference', () => {
       provider.insertFileReference();
     }),
   );

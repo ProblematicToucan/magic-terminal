@@ -15,7 +15,7 @@ interface JsonRpcMessage {
 }
 
 function createTempDir(): string {
-  const dir = path.join(os.tmpdir(), `magic-terminal-test-${Date.now()}`);
+  const dir = path.join(os.tmpdir(), `sideterm-test-${Date.now()}`);
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
@@ -105,7 +105,7 @@ suite("IpcServer", () => {
       (response.result as any).protocolVersion,
       "2025-11-25",
     );
-    assert.strictEqual((response.result as any).serverInfo.name, "magic-terminal");
+    assert.strictEqual((response.result as any).serverInfo.name, "sideterm");
 
     ws.close();
     server.stop();

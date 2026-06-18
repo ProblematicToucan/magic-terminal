@@ -106,7 +106,7 @@ export class IpcServer {
             id: msg.id ?? 1,
             result: {
               protocolVersion: "2025-11-25",
-              serverInfo: { name: "magic-terminal", version: "0.0.1" },
+              serverInfo: { name: "sideterm", version: "0.0.1" },
             },
           }),
         );

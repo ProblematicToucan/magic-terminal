@@ -54,13 +54,13 @@ jobs:
         run: npm ci
 
       - name: Package Extension
-        run: npx @vscode/vsce package --target ${{ matrix.target }} -o magic-terminal-${{ matrix.target }}.vsix
+        run: npx @vscode/vsce package --target ${{ matrix.target }} -o sideterm-${{ matrix.target }}.vsix
 
       - name: Upload VSIX Artifact
         uses: actions/upload-artifact@v4
         with:
           name: vsix-${{ matrix.target }}
-          path: magic-terminal-${{ matrix.target }}.vsix
+          path: sideterm-${{ matrix.target }}.vsix
 
   publish:
     name: Publish to Marketplace
